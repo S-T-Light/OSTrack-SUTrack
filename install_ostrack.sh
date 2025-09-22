@@ -97,7 +97,7 @@ pip install wandb
 echo ""
 echo ""
 echo "****************** Installing timm ******************"
-pip install timm
+pip install timm==0.5.4
 
 echo ""
 echo ""
