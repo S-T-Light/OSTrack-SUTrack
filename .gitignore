@@ -173,3 +173,5 @@ data/
 pretrained_models/
 output/
 tensorboard/
+
+SUTrack/
