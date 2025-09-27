@@ -108,3 +108,18 @@ class BaseVideoDataset(torch.utils.data.Dataset):
         """
         raise NotImplementedError
 
+    def get_annos(self, seq_id, frame_ids, anno=None):
+        """ Get a set of frames from a particular sequence
+
+        args:
+            seq_id      - index of sequence
+            frame_ids   - a list of frame numbers
+            anno(None)  - The annotation for the sequence (see get_sequence_info). If None, they will be loaded.
+
+        returns:
+            list - List of frames corresponding to frame_ids
+            list - List of dicts for each frame
+            dict - A dict containing meta information about the sequence, e.g. class of the target object.
+
+        """
+        raise NotImplementedError

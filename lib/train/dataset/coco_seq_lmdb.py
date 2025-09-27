@@ -8,6 +8,7 @@ from lib.train.admin import env_settings
 from lib.train.dataset.COCO_tool import COCO
 from lib.utils.lmdb_utils import decode_img, decode_json
 import time
+import numpy as np
 
 class MSCOCOSeq_lmdb(BaseVideoDataset):
     """ The COCO dataset. COCO is an image dataset. Thus, we treat each image as a sequence of length 1.
@@ -32,7 +33,8 @@ class MSCOCOSeq_lmdb(BaseVideoDataset):
     Note: You also have to install the coco pythonAPI from https://github.com/cocodataset/cocoapi.
     """
 
-    def __init__(self, root=None, image_loader=jpeg4py_loader, data_fraction=None, split="train", version="2014"):
+    def __init__(self, root=None, image_loader=jpeg4py_loader, data_fraction=None, split="train", version="2014",
+                 multi_modal_vision=False, multi_modal_language=False, use_nlp=False):
         """
         args:
             root - path to the coco dataset.
@@ -67,6 +69,10 @@ class MSCOCOSeq_lmdb(BaseVideoDataset):
         if data_fraction is not None:
             self.sequence_list = random.sample(self.sequence_list, int(len(self.sequence_list)*data_fraction))
         self.seq_per_class = self._build_seq_per_class()
+
+        self.multi_modal_vision = multi_modal_vision
+        self.multi_modal_language = multi_modal_language
+        self.use_nlp = use_nlp
 
     def _get_sequence_list(self):
         ann_list = list(self.coco_set.anns.keys())
@@ -134,8 +140,10 @@ class MSCOCOSeq_lmdb(BaseVideoDataset):
     def _get_frames(self, seq_id):
         path = self.coco_set.loadImgs([self.coco_set.anns[self.sequence_list[seq_id]]['image_id']])[0]['file_name']
         # img = self.image_loader(os.path.join(self.img_pth, path))
-        img = decode_img(self.root, os.path.join(self.img_pth, path))
-        return img
+        frame = decode_img(self.root, os.path.join(self.img_pth, path))
+        if self.multi_modal_vision:
+            frame = np.concatenate((frame, frame), axis=-1)
+        return frame
 
     def get_meta_info(self, seq_id):
         try:
@@ -175,3 +183,17 @@ class MSCOCOSeq_lmdb(BaseVideoDataset):
         object_meta = self.get_meta_info(seq_id)
 
         return frame_list, anno_frames, object_meta
+
+    def get_annos(self, seq_id=None, frame_ids=None, anno=None):
+        # COCO is an image dataset. Thus we replicate the image denoted by seq_id len(frame_ids) times, and return a
+        # list containing these replicated images.
+
+
+        if anno is None:
+            anno = self.get_sequence_info(seq_id)
+
+        anno_frames = {}
+        for key, value in anno.items():
+            anno_frames[key] = [value[0, ...] for _ in frame_ids]
+
+        return anno_frames

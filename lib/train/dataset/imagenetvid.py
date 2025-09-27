@@ -100,6 +100,17 @@ class ImagenetVID(BaseVideoDataset):
 
         return frame_list, anno_frames, object_meta
 
+    def get_annos(self, seq_id, frame_ids, anno=None):
+        if anno is None:
+            anno = self.get_sequence_info(seq_id)
+
+        # Create anno dict
+        anno_frames = {}
+        for key, value in anno.items():
+            anno_frames[key] = [value[f_id, ...].clone() for f_id in frame_ids]
+
+        return anno_frames
+
     def _process_anno(self, root):
         # Builds individual tracklets
         base_vid_anno_path = os.path.join(root, 'Annotations', 'VID', 'train')

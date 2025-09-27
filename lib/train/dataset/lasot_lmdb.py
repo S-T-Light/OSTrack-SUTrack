@@ -15,7 +15,8 @@ from lib.utils.lmdb_utils import *
 
 class Lasot_lmdb(BaseVideoDataset):
 
-    def __init__(self, root=None, image_loader=jpeg4py_loader, vid_ids=None, split=None, data_fraction=None):
+    def __init__(self, root=None, image_loader=jpeg4py_loader, vid_ids=None, split=None, data_fraction=None,
+                 multi_modal_vision=False, multi_modal_language=False, use_nlp=False):
         """
         args:
             root - path to the lasot dataset.
@@ -44,6 +45,10 @@ class Lasot_lmdb(BaseVideoDataset):
 
         self.seq_per_class = self._build_class_list()
 
+        self.multi_modal_vision = multi_modal_vision
+        self.multi_modal_language = multi_modal_language
+        self.use_nlp = use_nlp
+
     def _build_sequence_list(self, vid_ids=None, split=None):
         if split is not None:
             if vid_ids is not None:
@@ -53,7 +58,8 @@ class Lasot_lmdb(BaseVideoDataset):
                 file_path = os.path.join(ltr_path, 'data_specs', 'lasot_train_split.txt')
             else:
                 raise ValueError('Unknown split name.')
-            sequence_list = pandas.read_csv(file_path, header=None, squeeze=True).values.tolist()
+            # sequence_list = pandas.read_csv(file_path, header=None, squeeze=True).values.tolist()
+            sequence_list = pandas.read_csv(file_path, header=None).squeeze("columns").values.tolist()
         elif vid_ids is not None:
             sequence_list = [c+'-'+str(v) for c in self.class_list for v in vid_ids]
         else:
@@ -131,7 +137,10 @@ class Lasot_lmdb(BaseVideoDataset):
         return os.path.join(seq_path, 'img', '{:08}.jpg'.format(frame_id+1))    # frames start from 1
 
     def _get_frame(self, seq_path, frame_id):
-        return decode_img(self.root, self._get_frame_path(seq_path, frame_id))
+        frame = decode_img(self.root, self._get_frame_path(seq_path, frame_id))
+        if self.multi_modal_vision:
+            frame = np.concatenate((frame, frame), axis=-1)
+        return frame
 
     def _get_class(self, seq_path):
         raw_class = seq_path.split('/')[-2]
@@ -163,3 +172,13 @@ class Lasot_lmdb(BaseVideoDataset):
                                    'motion_adverb': None})
 
         return frame_list, anno_frames, object_meta
+
+    def get_annos(self, seq_id, frame_ids, anno=None):
+        if anno is None:
+            anno = self.get_sequence_info(seq_id)
+
+        anno_frames = {}
+        for key, value in anno.items():
+            anno_frames[key] = [value[f_id, ...].clone() for f_id in frame_ids]
+
+        return anno_frames

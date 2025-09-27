@@ -43,7 +43,8 @@ class TrackingNet(BaseVideoDataset):
 
     Download the dataset using the toolkit https://github.com/SilvioGiancola/TrackingNet-devkit.
     """
-    def __init__(self, root=None, image_loader=jpeg4py_loader, set_ids=None, data_fraction=None):
+    def __init__(self, root=None, image_loader=jpeg4py_loader, set_ids=None, data_fraction=None,
+                 multi_modal_vision=False, multi_modal_language=False, use_nlp=False):
         """
         args:
             root        - The path to the TrackingNet folder, containing the training sets.
@@ -73,6 +74,10 @@ class TrackingNet(BaseVideoDataset):
         # we do not have the class_lists for the tracking net
         self.class_list = list(self.seq_per_class.keys())
         self.class_list.sort()
+
+        self.multi_modal_vision = multi_modal_vision
+        self.multi_modal_language = multi_modal_language
+        self.use_nlp = use_nlp
 
     def _load_class_info(self):
         ltr_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
@@ -119,7 +124,10 @@ class TrackingNet(BaseVideoDataset):
         set_id = self.sequence_list[seq_id][0]
         vid_name = self.sequence_list[seq_id][1]
         frame_path = os.path.join(self.root, "TRAIN_" + str(set_id), "frames", vid_name, str(frame_id) + ".jpg")
-        return self.image_loader(frame_path)
+        frame = self.image_loader(frame_path)
+        if self.multi_modal_vision:
+            frame = np.concatenate((frame, frame), axis=-1)
+        return frame
 
     def _get_class(self, seq_id):
         seq_name = self.sequence_list[seq_id][1]
@@ -149,3 +157,13 @@ class TrackingNet(BaseVideoDataset):
                                    'motion_adverb': None})
 
         return frame_list, anno_frames, object_meta
+
+    def get_annos(self, seq_id, frame_ids, anno=None):
+        if anno is None:
+            anno = self.get_sequence_info(seq_id)
+
+        anno_frames = {}
+        for key, value in anno.items():
+            anno_frames[key] = [value[f_id, ...].clone() for f_id in frame_ids]
+
+        return anno_frames

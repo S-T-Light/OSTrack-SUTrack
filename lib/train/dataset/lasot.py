@@ -23,7 +23,8 @@ class Lasot(BaseVideoDataset):
     Download the dataset from https://cis.temple.edu/lasot/download.html
     """
 
-    def __init__(self, root=None, image_loader=jpeg4py_loader, vid_ids=None, split=None, data_fraction=None):
+    def __init__(self, root=None, image_loader=jpeg4py_loader, vid_ids=None, split=None, data_fraction=None,
+                 multi_modal_vision=False, multi_modal_language=False, use_nlp=False):
         """
         args:
             root - path to the lasot dataset.
@@ -48,6 +49,10 @@ class Lasot(BaseVideoDataset):
             self.sequence_list = random.sample(self.sequence_list, int(len(self.sequence_list)*data_fraction))
 
         self.seq_per_class = self._build_class_list()
+
+        self.multi_modal_vision = multi_modal_vision
+        self.multi_modal_language = multi_modal_language
+        self.use_nlp = use_nlp
 
     def _build_sequence_list(self, vid_ids=None, split=None):
         if split is not None:
@@ -128,14 +133,20 @@ class Lasot(BaseVideoDataset):
 
         valid = (bbox[:, 2] > 0) & (bbox[:, 3] > 0)
         visible = self._read_target_visible(seq_path) & valid.byte()
-
-        return {'bbox': bbox, 'valid': valid, 'visible': visible}
+        output = {'bbox': bbox, 'valid': valid, 'visible': visible}
+        if self.multi_modal_language and self.use_nlp:
+            nlp = self._read_nlp(seq_path)
+            output['nlp'] = nlp
+        return output
 
     def _get_frame_path(self, seq_path, frame_id):
         return os.path.join(seq_path, 'img', '{:08}.jpg'.format(frame_id+1))    # frames start from 1
 
     def _get_frame(self, seq_path, frame_id):
-        return self.image_loader(self._get_frame_path(seq_path, frame_id))
+        frame = self.image_loader(self._get_frame_path(seq_path, frame_id))
+        if self.multi_modal_vision:
+            frame = np.concatenate((frame, frame), axis=-1)
+        return frame
 
     def _get_class(self, seq_path):
         raw_class = seq_path.split('/')[-2]
@@ -146,6 +157,12 @@ class Lasot(BaseVideoDataset):
         obj_class = self._get_class(seq_path)
 
         return obj_class
+
+    ###############################################################
+    def _read_nlp(self, seq_path):
+        nlp_file = os.path.join(seq_path, "nlp.txt")
+        nlp = pandas.read_csv(nlp_file, dtype=str, header=None, low_memory=False).values
+        return nlp[0][0]
 
     def get_frames(self, seq_id, frame_ids, anno=None):
         seq_path = self._get_sequence_path(seq_id)
@@ -158,7 +175,10 @@ class Lasot(BaseVideoDataset):
 
         anno_frames = {}
         for key, value in anno.items():
-            anno_frames[key] = [value[f_id, ...].clone() for f_id in frame_ids]
+            if key == 'nlp':
+                anno_frames[key] = [value for _ in frame_ids]
+            else:
+                anno_frames[key] = [value[f_id, ...].clone() for f_id in frame_ids]
 
         object_meta = OrderedDict({'object_class_name': obj_class,
                                    'motion_class': None,
@@ -167,3 +187,13 @@ class Lasot(BaseVideoDataset):
                                    'motion_adverb': None})
 
         return frame_list, anno_frames, object_meta
+
+    def get_annos(self, seq_id, frame_ids, anno=None):
+        if anno is None:
+            anno = self.get_sequence_info(seq_id)
+
+        anno_frames = {}
+        for key, value in anno.items():
+            anno_frames[key] = [value[f_id, ...].clone() for f_id in frame_ids]
+
+        return anno_frames

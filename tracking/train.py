@@ -61,3 +61,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# python tracking/train.py --script sutrack --config sutrack_t224 --save_dir ./output --mode multiple --nproc_per_node 2 --use_wandb 0

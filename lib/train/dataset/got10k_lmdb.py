@@ -16,7 +16,8 @@ from lib.utils.lmdb_utils import *
 
 class Got10k_lmdb(BaseVideoDataset):
 
-    def __init__(self, root=None, image_loader=jpeg4py_loader, split=None, seq_ids=None, data_fraction=None):
+    def __init__(self, root=None, image_loader=jpeg4py_loader, split=None, seq_ids=None, data_fraction=None,
+                 multi_modal_vision=False, multi_modal_language=False, use_nlp=False):
         """
         args:
             root - path to the got-10k training data. Note: This should point to the 'train' folder inside GOT-10k
@@ -53,7 +54,8 @@ class Got10k_lmdb(BaseVideoDataset):
                 file_path = os.path.join(train_lib_path, 'data_specs', 'got10k_vot_val_split.txt')
             else:
                 raise ValueError('Unknown split name.')
-            seq_ids = pandas.read_csv(file_path, header=None, squeeze=True, dtype=np.int64).values.tolist()
+            # seq_ids = pandas.read_csv(file_path, header=None, squeeze=True, dtype=np.int64).values.tolist()
+            seq_ids = pandas.read_csv(file_path, header=None, dtype=np.int64).squeeze("columns").values.tolist()
         elif seq_ids is None:
             seq_ids = list(range(0, len(self.sequence_list)))
 
@@ -67,6 +69,10 @@ class Got10k_lmdb(BaseVideoDataset):
 
         self.class_list = list(self.seq_per_class.keys())
         self.class_list.sort()
+
+        self.multi_modal_vision = multi_modal_vision
+        self.multi_modal_language = multi_modal_language
+        self.use_nlp = use_nlp
 
     def get_name(self):
         return 'got10k_lmdb'
@@ -160,7 +166,10 @@ class Got10k_lmdb(BaseVideoDataset):
         return os.path.join(seq_path, '{:08}.jpg'.format(frame_id+1))    # frames start from 1
 
     def _get_frame(self, seq_path, frame_id):
-        return decode_img(self.root, self._get_frame_path(seq_path, frame_id))
+        frame = decode_img(self.root, self._get_frame_path(seq_path, frame_id))
+        if self.multi_modal_vision:
+            frame = np.concatenate((frame, frame), axis=-1)
+        return frame
 
     def get_class_name(self, seq_id):
         obj_meta = self.sequence_meta_info[self.sequence_list[seq_id]]
@@ -181,3 +190,13 @@ class Got10k_lmdb(BaseVideoDataset):
             anno_frames[key] = [value[f_id, ...].clone() for f_id in frame_ids]
 
         return frame_list, anno_frames, obj_meta
+
+    def get_annos(self, seq_id, frame_ids, anno=None):
+        if anno is None:
+            anno = self.get_sequence_info(seq_id)
+
+        anno_frames = {}
+        for key, value in anno.items():
+            anno_frames[key] = [value[f_id, ...].clone() for f_id in frame_ids]
+
+        return anno_frames
