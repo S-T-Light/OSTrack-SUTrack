@@ -5,10 +5,13 @@ DATA:
   - 0.456
   - 0.406
   SEARCH:
-    CENTER_JITTER: 3
+    # CENTER_JITTER: 3
+    CENTER_JITTER: 3.5
     FACTOR: 4.0
-    SCALE_JITTER: 0.25
-    SIZE: 256
+    # SCALE_JITTER: 0.25
+    SCALE_JITTER: 0.5
+    # SIZE: 256
+    SIZE: 224
     NUMBER: 1
   STD:
   - 0.229
@@ -18,7 +21,8 @@ DATA:
     CENTER_JITTER: 0
     FACTOR: 2.0
     SCALE_JITTER: 0
-    SIZE: 128
+    # SIZE: 128
+    SIZE: 112
   TRAIN:
     DATASETS_NAME:
     - LASOT
