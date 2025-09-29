@@ -19,13 +19,6 @@ DATA:
     FACTOR: 2.0
     SCALE_JITTER: 0
     SIZE: 128
-#  TRAIN:
-#    DATASETS_NAME:
-#      - GOT10K_train_full
-#    DATASETS_RATIO:
-#      - 1
-#    SAMPLE_PER_EPOCH: 60000
-
   TRAIN:
     DATASETS_NAME:
     - LASOT
@@ -45,17 +38,17 @@ DATA:
     - 1
     SAMPLE_PER_EPOCH: 10000
 MODEL:
-  PRETRAIN_FILE: "mae_pretrain_vit_base.pth"
+  PRETRAIN_FILE: "fast_itpn_tiny_1600e_1k.pt"
   EXTRA_MERGER: False
   RETURN_INTER: False
-  BACKBONE:
-    TYPE: vit_base_patch16_224
+  ENCODER:
+    TYPE: fastitpnt
     STRIDE: 16
   HEAD:
     TYPE: CENTER
     NUM_CHANNELS: 256
 TRAIN:
-  BACKBONE_MULTIPLIER: 0.1
+  ENCODER_MULTIPLIER: 0.1
   DROP_PATH_RATE: 0.1
   BATCH_SIZE: 32
   EPOCH: 300

@@ -221,28 +221,30 @@ class MLP(nn.Module):
         return x
 
 
-def build_box_head(cfg, hidden_dim):
-    stride = cfg.MODEL.BACKBONE.STRIDE
+def build_box_head(cfg, encoder):
+    in_channel = encoder.num_channels # 这里根据不同encoder的大小设置
+    hidden_dim = cfg.DECODER.NUM_CHANNELS
+    stride = cfg.MODEL.ENCODER.STRIDE
 
-    if cfg.MODEL.HEAD.TYPE == "MLP":
+    if cfg.MODEL.DECODER.TYPE == "MLP":
         mlp_head = MLP(hidden_dim, hidden_dim, 4, 3)  # dim_in, dim_hidden, dim_out, 3 layers
         return mlp_head
-    elif "CORNER" in cfg.MODEL.HEAD.TYPE:
+    elif "CORNER" in cfg.MODEL.DECODER.TYPE:
         feat_sz = int(cfg.DATA.SEARCH.SIZE / stride)
         channel = getattr(cfg.MODEL, "NUM_CHANNELS", 256)
         print("head channel: %d" % channel)
-        if cfg.MODEL.HEAD.TYPE == "CORNER":
+        if cfg.MODEL.DECODER.TYPE == "CORNER":
             corner_head = Corner_Predictor(inplanes=cfg.MODEL.HIDDEN_DIM, channel=channel,
                                            feat_sz=feat_sz, stride=stride)
         else:
             raise ValueError()
         return corner_head
-    elif cfg.MODEL.HEAD.TYPE == "CENTER":
-        in_channel = hidden_dim
-        out_channel = cfg.MODEL.HEAD.NUM_CHANNELS
+    elif cfg.MODEL.DECODER.TYPE == "CENTER":
+        # in_channel = hidden_dim
+        out_channel = cfg.MODEL.DECODER.NUM_CHANNELS
         feat_sz = int(cfg.DATA.SEARCH.SIZE / stride)
         center_head = CenterPredictor(inplanes=in_channel, channel=out_channel,
                                       feat_sz=feat_sz, stride=stride)
         return center_head
     else:
-        raise ValueError("HEAD TYPE %s is not supported." % cfg.MODEL.HEAD_TYPE)
+        raise ValueError("DECODER TYPE %s is not supported." % cfg.MODEL.DECODER_TYPE)

@@ -172,3 +172,4 @@ pytracking/run_local.py
 data/
 output/
 tensorboard/
+lib/models/sutrack/fastitpn_bak.py

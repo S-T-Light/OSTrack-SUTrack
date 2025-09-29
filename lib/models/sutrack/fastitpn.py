@@ -489,13 +489,18 @@ class PatchEmbed(nn.Module):
         return x
 
 
-class ConvPatchEmbed(nn.Module):
-    def __init__(self, search_size=224,template_size=112, patch_size=16, inner_patches=4, in_chans=3, embed_dim=128, norm_layer=None,
-                 stop_grad_conv1=False):
+class ConvPatchEmbed(nn.Module): # img 改成 search 和 template
+    # def __init__(self, img_size=224, patch_size=16, inner_patches=4, in_chans=3, embed_dim=128, norm_layer=None,
+    #              stop_grad_conv1=False):
+    def __init__(self, search_size=224, template_size=112, patch_size=16, 
+    inner_patches=4, in_chans=3, embed_dim=128, norm_layer=None, stop_grad_conv1=False):
         super().__init__()
+        # img_size = to_2tuple(img_size)
         search_size = to_2tuple(search_size)
         template_size = to_2tuple(template_size)
         patch_size = to_2tuple(patch_size)
+        # patches_resolution = [img_size[0] // patch_size[0], img_size[1] // patch_size[1]]
+        # self.img_size = img_size
         patches_resolution_search = [search_size[0] // patch_size[0], search_size[1] // patch_size[1]]
         patches_resolution_template = [template_size[0] // patch_size[0], template_size[1] // patch_size[1]]
         self.search_size = search_size
@@ -503,6 +508,8 @@ class ConvPatchEmbed(nn.Module):
         self.patch_size = patch_size
         self.stop_grad_conv1 = stop_grad_conv1
         self.inner_patches = inner_patches
+        # self.patches_resolution = self.patch_shape = patches_resolution
+        # self.num_patches = patches_resolution[0] * patches_resolution[1]
         self.patches_resolution_search = self.patch_shape_search = patches_resolution_search
         self.num_patches_search = patches_resolution_search[0] * patches_resolution_search[1]
         self.patches_resolution_template = self.patch_shape_template = patches_resolution_template
@@ -655,9 +662,11 @@ class DecoupledRelativePositionBias(nn.Module):
 
 
 class Fast_iTPN(nn.Module):
+    # def __init__(self, img_size=224, patch_size=16, in_chans=3, embed_dim=512, depth_stage1=3, depth_stage2=3, depth=24,
     def __init__(self, search_size=224,template_size=112, patch_size=16, in_chans=3, embed_dim=512, depth_stage1=3, depth_stage2=3, depth=24,
                  num_heads=8, bridge_mlp_ratio=3., mlp_ratio=4., qkv_bias=True, qk_scale=None, drop_rate=0.,
-                 attn_drop_rate=0., drop_path_rate=0.0, init_values=None, attn_head_dim=None, norm_layer=nn.LayerNorm,
+                 attn_drop_rate=0., drop_path_rate=0.0, init_values=0.1, attn_head_dim=None, norm_layer=nn.LayerNorm,
+                #  attn_drop_rate=0., drop_path_rate=0.0, init_values=None, attn_head_dim=None, norm_layer=nn.LayerNorm, # 这行是SUTrack的代码，init_values在lib/models/sutrack/encoder.py里指定为0.1
                  patch_norm=False, num_classes=1000, use_mean_pooling=False,
                  init_scale=0.01,
                  cls_token=False,
@@ -673,12 +682,12 @@ class Fast_iTPN(nn.Module):
                  subln=False,
                  swiglu=False,
                  naiveswiglu=False,
-                 token_type_indicate=False,
+                #  token_type_indicate=False, # 这行是SUTrack的代码
                  **kwargs):
         super().__init__()
         self.search_size = search_size
         self.template_size = template_size
-        self.token_type_indicate = token_type_indicate
+        # self.token_type_indicate = token_type_indicate # 这行是SUTrack的代码
         self.mlp_ratio = mlp_ratio
         self.grad_ckpt = grad_ckpt
         self.num_main_blocks = depth
@@ -698,13 +707,16 @@ class Fast_iTPN(nn.Module):
         # split image into non-overlapping patches
         if convmlp:
             self.patch_embed = ConvPatchEmbed(
+                # img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=mlvl_dims['4'],
                 search_size=search_size,template_size=template_size, patch_size=patch_size, in_chans=in_chans, embed_dim=mlvl_dims['4'],
                 stop_grad_conv1=stop_grad_conv1,
                 norm_layer=norm_layer if patch_norm else None)
         else:
             self.patch_embed = PatchEmbed(
+                # img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=mlvl_dims['4'],
                 img_size=search_size, patch_size=patch_size, in_chans=in_chans, embed_dim=mlvl_dims['4'],
                 norm_layer=norm_layer if patch_norm else None)
+        # num_patches = self.patch_embed.num_patches
         self.num_patches_search = self.patch_embed.num_patches_search
         self.num_patches_template = self.patch_embed.num_patches_template
         if cls_token:
@@ -712,15 +724,14 @@ class Fast_iTPN(nn.Module):
         else:
             self.cls_token = None
         if use_abs_pos_emb:
+            # if cls_token:
+            #     self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
+            # else:
+            #     self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
             self.pos_embed = nn.Parameter(torch.zeros(1, self.num_patches_search+self.num_patches_template, embed_dim))
         else:
             self.pos_embed = None
         # indicate for tracking
-        if self.token_type_indicate:
-            self.template_background_token = nn.Parameter(torch.zeros(embed_dim))
-            self.template_foreground_token = nn.Parameter(torch.zeros(embed_dim))
-            self.search_token = nn.Parameter(torch.zeros(embed_dim))
-
 
         self.pos_drop = nn.Dropout(p=drop_rate)
 
@@ -763,6 +774,8 @@ class Fast_iTPN(nn.Module):
 
         self.norm = nn.Identity() if use_mean_pooling else norm_layer(embed_dim)
         self.fc_norm = norm_layer(embed_dim) if use_mean_pooling else None
+        # self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+        # 这里不进行分类，直接输出特征
         self.head = nn.Identity()
 
         if self.pos_embed is not None:
@@ -937,30 +950,7 @@ class Fast_iTPN(nn.Module):
     def no_weight_decay_keywords(self):
         return {'relative_position_bias_table'}
 
-    def create_mask(self, image, image_anno):
-        height = image.size(2)
-        width = image.size(3)
-
-        # Extract bounding box coordinates
-        x0 = (image_anno[:, 0] * width).unsqueeze(1)
-        y0 = (image_anno[:, 1] * height).unsqueeze(1)
-        w = (image_anno[:, 2] * width).unsqueeze(1)
-        h = (image_anno[:, 3] * height).unsqueeze(1)
-
-        # Generate pixel indices
-        x_indices = torch.arange(width, device=image.device)
-        y_indices = torch.arange(height, device=image.device)
-
-        # Create masks for x and y coordinates within the bounding boxes
-        x_mask = ((x_indices >= x0) & (x_indices < x0 + w)).float()
-        y_mask = ((y_indices >= y0) & (y_indices < y0 + h)).float()
-
-        # Combine x and y masks to get final mask
-        mask = x_mask.unsqueeze(1) * y_mask.unsqueeze(2) # (b,h,w)
-
-        return mask
-
-    def prepare_tokens_with_masks(self, template_list, search_list, template_anno_list, text_src, task_index):
+    def prepare_tokens(self, template_list, search_list):
         B = search_list[0].size(0)
 
         num_template = len(template_list)
@@ -970,42 +960,9 @@ class Fast_iTPN(nn.Module):
         z = z.view(-1, *z.size()[2:])  # (bn,c,h,w)
         x = torch.stack(search_list, dim=1)  # (b,n,c,h,w)
         x = x.view(-1, *x.size()[2:])  # (bn,c,h,w)
-        z_anno = torch.stack(template_anno_list, dim=1)  # (b,n,4)
-        z_anno = z_anno.view(-1, *z_anno.size()[2:])  # (bn,4)
-
-        # 这部分是用来做平均mask得出权重的
-        if self.token_type_indicate:
-            # generate a foreground mask
-            z_indicate_mask = self.create_mask(z, z_anno) # (bn, h, w)
-            z_indicate_mask = z_indicate_mask.unfold(1, self.patch_size, self.patch_size).unfold(2, self.patch_size, self.patch_size) # to match the patch embedding。 (bn, h/patch_size, w/patch_size, patch_size, patch_size)
-            # 原来的是做平均得到[0,1]，现在改为明确分成两种，看总和是否超过patch_size*patch_size的0.5倍，如果超过则是前景设为1，否则设为0。数据格式和原来的保持一致
-            z_indicate_mask = (z_indicate_mask.sum(dim=(3,4)) > (self.patch_size*self.patch_size*0.5)).float().flatten(1) # elements are in {0,1}, float, 1 indicates foreground, 0 indicates background
-            # z_indicate_mask = z_indicate_mask.mean(dim=(3,4)).flatten(1) # elements are in [0,1], float, near to 1 indicates near to foreground, near to 0 indicates near to background
-
-        # 生成加权后的token
-        if self.token_type_indicate:
-            # generate the indicate_embeddings for z
-            template_background_token = self.template_background_token.unsqueeze(0).unsqueeze(1).expand(z_indicate_mask.size(0), z_indicate_mask.size(1), self.embed_dim) # (bn, num_patches, embed_dim)
-            template_foreground_token = self.template_foreground_token.unsqueeze(0).unsqueeze(1).expand(z_indicate_mask.size(0), z_indicate_mask.size(1), self.embed_dim)
-            weighted_foreground = template_foreground_token * z_indicate_mask.unsqueeze(-1)
-            weighted_background = template_background_token * (1 - z_indicate_mask.unsqueeze(-1))
-            z_indicate = weighted_foreground + weighted_background
-
-        # # 生成加权后的token
-        # if self.token_type_indicate:
-        #     # generate the indicate_embeddings for z
-        #     template_background_token = self.template_background_token.unsqueeze(0).unsqueeze(1).expand(z_indicate_mask.size(0), z_indicate_mask.size(1), self.embed_dim)
-        #     template_foreground_token = self.template_foreground_token.unsqueeze(0).unsqueeze(1).expand(z_indicate_mask.size(0), z_indicate_mask.size(1), self.embed_dim)
-        #     weighted_foreground = template_foreground_token * z_indicate_mask.unsqueeze(-1)
-        #     weighted_background = template_background_token * (1 - z_indicate_mask.unsqueeze(-1))
-        #     z_indicate = weighted_foreground + weighted_background
-
 
         z = self.patch_embed(z)
         x = self.patch_embed(x)
-        # forward stage1&2
-        if not self.convmlp and self.stop_grad_conv1:
-            x = x.detach() * 0.9 + x * 0.1
 
         for blk in self.blocks[:-self.num_main_blocks]:
             z = checkpoint.checkpoint(blk, z) if self.grad_ckpt else blk(z)  # bn,c,h,w
@@ -1018,32 +975,38 @@ class Fast_iTPN(nn.Module):
             x = x + self.pos_embed[:, :self.num_patches_search, :]
             z = z + self.pos_embed[:, self.num_patches_search:, :]
 
-        if self.token_type_indicate:
-            # generate the indicate_embeddings for x
-            x_indicate = self.search_token.unsqueeze(0).unsqueeze(1).expand(x.size(0), x.size(1), self.embed_dim)
-            # add indicate_embeddings to z and x
-            x = x + x_indicate
-            z = z + z_indicate
-
-
         z = z.view(-1, num_template, z.size(-2), z.size(-1))  # b,n,l,c
-        z = z.reshape(z.size(0), -1, z.size(-1))  # b,l,c
+        z = z.reshape(z.size(0), -1, z.size(-1))  # b,l,c 其中l=n*l
         x = x.view(-1, num_search, x.size(-2), x.size(-1))
         x = x.reshape(x.size(0), -1, x.size(-1))
 
-        if text_src is not None:
-            xz = torch.cat([x, z, text_src], dim=1)
-        else:
-            xz = torch.cat([x, z], dim=1)
-
-        if self.cls_token is not None:
-            cls_tokens = self.cls_token.expand(B, -1, -1)
-            xz = torch.cat([cls_tokens, xz], dim=1)
+        xz = torch.cat([x, z], dim=1)
 
         return xz
+        
+    # def forward_features(self, x):
+    def forward_features(self, template_list, search_list):
+        # B, C, H, W = x.shape
+        # x = self.patch_embed(x)
 
-    def forward_features(self, template_list, search_list,template_anno_list, text_src, task_index):
-        xz = self.prepare_tokens_with_masks(template_list, search_list, template_anno_list, text_src, task_index)
+        # 这段代码也没用到
+        # if not self.convmlp and self.stop_grad_conv1:
+        #     x = x.detach() * 0.9 + x * 0.1
+
+        # for blk in self.blocks[:-self.num_main_blocks]:
+        #     x = checkpoint.checkpoint(blk, x) if self.grad_ckpt else blk(x)
+
+        # x = x.flatten(2).transpose(1, 2)
+
+        # 这里的cls token没有用到
+        # if self.cls_token is not None:
+        #     cls_tokens = self.cls_token.expand(B, -1, -1)
+        #     x = torch.cat([cls_tokens, x], dim=1)
+        # if self.pos_embed is not None:
+        #     x = x + self.pos_embed
+        # x = self.pos_drop(x) # 这里的pos_drop放到了后面
+
+        xz = self.prepare_tokens(template_list, search_list)
         xz = self.pos_drop(xz)
 
         rel_pos_bias = self.rel_pos_bias() if self.rel_pos_bias is not None else None
@@ -1056,138 +1019,149 @@ class Fast_iTPN(nn.Module):
             return self.fc_norm(xz)
         else:
             return xz
+        
+        # 
+        # if self.fc_norm is not None:
+        #     if self.cls_token is not None:
+        #         x = x[:, 1:, :] # remove cls token
+        #     return self.fc_norm(x.mean(1)) # 对global pool结果应用layernorm
+        # else:
+        #     return x.mean(1) # global pool
 
-    def forward(self, template_list, search_list, template_anno_list, text_src, task_index):
-        xz = self.forward_features(template_list, search_list, template_anno_list, text_src, task_index)
-        # x = self.head(x)
-        out = [xz]
+    def forward(self, template_list, search_list):
+        xz = self.forward_features(template_list, search_list)
+        out = self.head(xz)
         return out
 
-def load_pretrained(model, checkpoint, pos_type, patchembed_init):
-    if "module" in checkpoint.keys():
-        # adjust position encoding
-        state_dict = checkpoint["module"]
-    elif "model" in checkpoint.keys():
-        state_dict = checkpoint["model"]
-    else:
-        state_dict = checkpoint
-    pe = state_dict['pos_embed'].float()
-    b_pe, hw_pe, c_pe = pe.shape
-    side_pe = int(math.sqrt(hw_pe))
-    side_num_patches_search = int(math.sqrt(model.num_patches_search))
-    side_num_patches_template = int(math.sqrt(model.num_patches_template))
-    pe_2D = pe.reshape([b_pe, side_pe, side_pe, c_pe]).permute([0,3,1,2])  #b,c,h,w
+# def load_pretrained(model, checkpoint, pos_type, patchembed_init):
+#     if "module" in checkpoint.keys():
+#         # adjust position encoding
+#         state_dict = checkpoint["module"]
+#     elif "model" in checkpoint.keys():
+#         state_dict = checkpoint["model"]
+#     else:
+#         state_dict = checkpoint
+#     pe = state_dict['pos_embed'].float()
+#     b_pe, hw_pe, c_pe = pe.shape
+#     side_pe = int(math.sqrt(hw_pe))
+#     side_num_patches_search = int(math.sqrt(model.num_patches_search))
+#     side_num_patches_template = int(math.sqrt(model.num_patches_template))
+#     pe_2D = pe.reshape([b_pe, side_pe, side_pe, c_pe]).permute([0,3,1,2])  #b,c,h,w
 
-    def adjust_pe(pe_2D, side_pe, side_new):
-        if pos_type == 'index':
-            if side_pe < side_new:
-                pe_new_2D = nn.functional.interpolate(pe_2D, [side_new, side_new], align_corners=True, mode='bicubic')
-                warnings.warn('The resolution is too large, the POS_TYPE has been modified to \'interpolate\'')
-            else:
-                pe_new_2D = pe_2D[:,:,0:side_new,0:side_new]
-            pe_new = torch.flatten(pe_new_2D.permute([0, 2, 3, 1]), 1, 2)
-        elif pos_type == 'interpolate':
-            pe_new_2D = nn.functional.interpolate(pe_2D, [side_new, side_new], align_corners=True, mode='bicubic')
-            pe_new = torch.flatten(pe_new_2D.permute([0, 2, 3, 1]), 1, 2)#b,l,c
-        else:
-            raise NotImplementedError('The POS_TYPE should be index or interpolate')
-        return pe_new
+#     def adjust_pe(pe_2D, side_pe, side_new):
+#         if pos_type == 'index':
+#             if side_pe < side_new:
+#                 pe_new_2D = nn.functional.interpolate(pe_2D, [side_new, side_new], align_corners=True, mode='bicubic')
+#                 warnings.warn('The resolution is too large, the POS_TYPE has been modified to \'interpolate\'')
+#             else:
+#                 pe_new_2D = pe_2D[:,:,0:side_new,0:side_new]
+#             pe_new = torch.flatten(pe_new_2D.permute([0, 2, 3, 1]), 1, 2)
+#         elif pos_type == 'interpolate':
+#             pe_new_2D = nn.functional.interpolate(pe_2D, [side_new, side_new], align_corners=True, mode='bicubic')
+#             pe_new = torch.flatten(pe_new_2D.permute([0, 2, 3, 1]), 1, 2)#b,l,c
+#         else:
+#             raise NotImplementedError('The POS_TYPE should be index or interpolate')
+#         return pe_new
 
-    if side_pe != side_num_patches_search:
-        pe_s = adjust_pe(pe_2D, side_pe, side_num_patches_search)
-    else:
-        pe_s = pe
-    if side_pe != side_num_patches_template:
-        pe_t = adjust_pe(pe_2D, side_pe, side_num_patches_template)
-    else:
-        pe_t = pe
-    pe_xz = torch.cat((pe_s, pe_t), dim=1)
-    state_dict['pos_embed'] = pe_xz
-    auxiliary_keys = ["template_background_token", "template_foreground_token", "search_token"]
-    for key in auxiliary_keys:
-        if (key in model.state_dict().keys()) and (key not in state_dict.keys()):
-            state_dict[key] = model.state_dict()[key]
+#     if side_pe != side_num_patches_search:
+#         pe_s = adjust_pe(pe_2D, side_pe, side_num_patches_search)
+#     else:
+#         pe_s = pe
+#     if side_pe != side_num_patches_template:
+#         pe_t = adjust_pe(pe_2D, side_pe, side_num_patches_template)
+#     else:
+#         pe_t = pe
+#     pe_xz = torch.cat((pe_s, pe_t), dim=1)
+#     state_dict['pos_embed'] = pe_xz
+#     auxiliary_keys = ["template_background_token", "template_foreground_token", "search_token"]
+#     for key in auxiliary_keys:
+#         if (key in model.state_dict().keys()) and (key not in state_dict.keys()):
+#             state_dict[key] = model.state_dict()[key]
 
-    ## patch embedding
-    patch_embedding_weight = model.state_dict()['patch_embed.proj.weight']
-    patch_embedding_weight_pretrained = state_dict['patch_embed.proj.weight']
-    if patchembed_init == "copy":
-        patch_embedding_weight[:,:3,:,:] = patch_embedding_weight_pretrained
-        patch_embedding_weight[:,3:,:,:] = patch_embedding_weight_pretrained
-    elif patchembed_init == "halfcopy":
-        patch_embedding_weight[:,:3,:,:] = patch_embedding_weight_pretrained / 2
-        patch_embedding_weight[:,3:,:,:] = patch_embedding_weight_pretrained / 2
-    elif patchembed_init == "random":
-        patch_embedding_weight[:, :3, :, :] = patch_embedding_weight_pretrained
-    else:
-        raise NotImplementedError('cfg.MODEL.ENCODER.PATCHEMBED_INIT must be choosen from copy, halfcopy, or random')
-    state_dict['patch_embed.proj.weight'] = patch_embedding_weight
-    model.load_state_dict(state_dict, strict=False)
-
+#     ## patch embedding
+#     patch_embedding_weight = model.state_dict()['patch_embed.proj.weight']
+#     patch_embedding_weight_pretrained = state_dict['patch_embed.proj.weight']
+#     if patchembed_init == "copy":
+#         patch_embedding_weight[:,:3,:,:] = patch_embedding_weight_pretrained
+#         patch_embedding_weight[:,3:,:,:] = patch_embedding_weight_pretrained
+#     elif patchembed_init == "halfcopy":
+#         patch_embedding_weight[:,:3,:,:] = patch_embedding_weight_pretrained / 2
+#         patch_embedding_weight[:,3:,:,:] = patch_embedding_weight_pretrained / 2
+#     elif patchembed_init == "random":
+#         patch_embedding_weight[:, :3, :, :] = patch_embedding_weight_pretrained
+#     else:
+#         raise NotImplementedError('cfg.MODEL.ENCODER.PATCHEMBED_INIT must be choosen from copy, halfcopy, or random')
+#     state_dict['patch_embed.proj.weight'] = patch_embedding_weight
+#     model.load_state_dict(state_dict, strict=False)
 
 @register_model
-def fastitpnt(pretrained=False, pos_type="interpolate", pretrain_type="", patchembed_init="copy", **kwargs):
+def fastitpnt(pretrained=False, **kwargs):
     model = Fast_iTPN(
-        patch_size=16, in_chans=6, embed_dim=384, depth_stage1=1, depth_stage2=1, depth=12, num_heads=6, bridge_mlp_ratio=3.,
+        patch_size=16, embed_dim=384, depth_stage1=1, depth_stage2=1, depth=12, num_heads=6, bridge_mlp_ratio=3.,
         mlp_ratio=3., qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6),
         convmlp=True,
         naiveswiglu=True,
         subln=True,
-        pos_type=pos_type,
         **kwargs)
     model.default_cfg = _cfg()
     if pretrained:
-        checkpoint = torch.load(pretrain_type, map_location="cpu")
-        load_pretrained(model,checkpoint,pos_type,patchembed_init)
+        checkpoint = torch.load(
+            kwargs["init_ckpt"], map_location="cpu"
+        )
+        model.load_state_dict(checkpoint["model"])
     return model
 
 
-@register_model
-def fastitpns(pretrained=False, pos_type="interpolate", pretrain_type="", patchembed_init="copy", **kwargs):
-    model = Fast_iTPN(
-        patch_size=16, in_chans=6, embed_dim=384, depth_stage1=2, depth_stage2=2, depth=20, num_heads=6, bridge_mlp_ratio=3.,
-        mlp_ratio=3., qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        convmlp=True,
-        naiveswiglu=True,
-        subln=True,
-        pos_type=pos_type,
-        **kwargs)
-    model.default_cfg = _cfg()
-    if pretrained:
-        checkpoint = torch.load(pretrain_type, map_location="cpu")
-        load_pretrained(model,checkpoint,pos_type,patchembed_init)
-    return model
+# # 这里的模型没有用到，是原始代码
+# @register_model
+# def fast_itpn_small_2220_patch16_224(pretrained=False, **kwargs):
+#     model = Fast_iTPN(
+#         patch_size=16, embed_dim=384, depth_stage1=2, depth_stage2=2, depth=20, num_heads=6, bridge_mlp_ratio=3.,
+#         mlp_ratio=3., qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6),
+#         convmlp=True,
+#         naiveswiglu=True,
+#         subln=True,
+#         **kwargs)
+#     model.default_cfg = _cfg()
+#     if pretrained:
+#         checkpoint = torch.load(
+#             kwargs["init_ckpt"], map_location="cpu"
+#         )
+#         model.load_state_dict(checkpoint["model"])
+#     return model
 
 
-@register_model
-def fastitpnb(pretrained=False, pos_type="interpolate", pretrain_type="", patchembed_init="copy", **kwargs):
-    model = Fast_iTPN(
-        patch_size=16, in_chans=6, embed_dim=512, depth_stage1=3, depth_stage2=3, depth=24, num_heads=8, bridge_mlp_ratio=3.,
-        mlp_ratio=3., qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        convmlp=True,
-        naiveswiglu=True,
-        subln=True,
-        pos_type = pos_type,
-        **kwargs)
-    model.default_cfg = _cfg()
-    if pretrained:
-        checkpoint = torch.load(pretrain_type, map_location="cpu")
-        load_pretrained(model,checkpoint,pos_type,patchembed_init)
-    return model
+# @register_model
+# def fast_itpn_base_3324_patch16_224(pretrained=False, **kwargs):
+#     model = Fast_iTPN(
+#         patch_size=16, embed_dim=512, depth_stage1=3, depth_stage2=3, depth=24, num_heads=8, bridge_mlp_ratio=3.,
+#         mlp_ratio=3., qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6),
+#         convmlp=True,
+#         naiveswiglu=True,
+#         subln=True,
+#         **kwargs)
+#     model.default_cfg = _cfg()
+#     if pretrained:
+#         checkpoint = torch.load(
+#             kwargs["init_ckpt"], map_location="cpu"
+#         )
+#         model.load_state_dict(checkpoint["model"])
+#     return model
 
 
-@register_model
-def fastitpnl(pretrained=False, pos_type="interpolate", pretrain_type="", patchembed_init="copy", **kwargs):
-    model = Fast_iTPN(
-        patch_size=16, in_chans=6, embed_dim=768, depth_stage1=2, depth_stage2=2, depth=40, num_heads=12, bridge_mlp_ratio=3.,
-        mlp_ratio=3., qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        convmlp=True,
-        naiveswiglu=True,
-        subln=True,
-        pos_type="interpolate",
-        **kwargs)
-    model.default_cfg = _cfg()
-    if pretrained:
-        checkpoint = torch.load(pretrain_type, map_location="cpu")
-        load_pretrained(model,checkpoint,pos_type,patchembed_init)
-    return model
+# @register_model
+# def fast_itpn_large_2240_patch16_256(pretrained=False, **kwargs):
+#     model = Fast_iTPN(
+#         patch_size=16, embed_dim=768, depth_stage1=2, depth_stage2=2, depth=40, num_heads=12, bridge_mlp_ratio=3.,
+#         mlp_ratio=3., qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6),
+#         convmlp=True,
+#         naiveswiglu=True,
+#         subln=True,
+#         **kwargs)
+#     model.default_cfg = _cfg()
+#     if pretrained:
+#         checkpoint = torch.load(
+#             kwargs["init_ckpt"], map_location="cpu"
+#         )
+#         model.load_state_dict(checkpoint["model"])
+#     return model

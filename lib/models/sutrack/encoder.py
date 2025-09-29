@@ -30,8 +30,11 @@ class EncoderBase(nn.Module):
         self.body = encoder
         self.num_channels = num_channels
 
-    def forward(self, template_list, search_list, template_anno_list, text_src, task_index):
-        xs = self.body(template_list, search_list, template_anno_list, text_src, task_index)
+    # def forward(self, template_list, search_list, template_anno_list, text_src, task_index):
+    #     xs = self.body(template_list, search_list, template_anno_list, text_src, task_index)
+    #     return xs
+    def forward(self, template_list, search_list):
+        xs = self.body(template_list, search_list)
         return xs
 
 
@@ -56,10 +59,10 @@ class Encoder(EncoderBase):
                 use_mean_pooling=True,
                 grad_ckpt=False,
                 cls_token=cfg.MODEL.ENCODER.CLASS_TOKEN,
-                pos_type=cfg.MODEL.ENCODER.POS_TYPE,
-                token_type_indicate=cfg.MODEL.ENCODER.TOKEN_TYPE_INDICATE,
-                pretrain_type = cfg.MODEL.ENCODER.PRETRAIN_TYPE,
-                patchembed_init = cfg.MODEL.ENCODER.PATCHEMBED_INIT
+                # pos_type=cfg.MODEL.ENCODER.POS_TYPE,
+                # token_type_indicate=cfg.MODEL.ENCODER.TOKEN_TYPE_INDICATE,
+                # pretrain_type = cfg.MODEL.ENCODER.PRETRAIN_TYPE,
+                # patchembed_init = cfg.MODEL.ENCODER.PATCHEMBED_INIT
             )
             if "itpnb" in name:
                 num_channels = 512

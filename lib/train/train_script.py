@@ -47,8 +47,8 @@ def run(settings):
     # Build dataloaders
     loader_train, loader_val = build_dataloaders(cfg, settings)
 
-    if "RepVGG" in cfg.MODEL.BACKBONE.TYPE or "swin" in cfg.MODEL.BACKBONE.TYPE or "LightTrack" in cfg.MODEL.BACKBONE.TYPE:
-        cfg.ckpt_dir = settings.save_dir
+    # if "RepVGG" in cfg.MODEL.BACKBONE.TYPE or "swin" in cfg.MODEL.BACKBONE.TYPE or "LightTrack" in cfg.MODEL.BACKBONE.TYPE:
+    #     cfg.ckpt_dir = settings.save_dir
 
     # Create network
     if settings.script_name == "sutrack":
