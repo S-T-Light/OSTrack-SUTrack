@@ -1,5 +1,5 @@
 DATA:
-  MAX_SAMPLE_INTERVAL: 200
+  MAX_SAMPLE_INTERVAL: 400
   MEAN:
   - 0.485
   - 0.456
@@ -42,13 +42,13 @@ DATA:
     - 1
     SAMPLE_PER_EPOCH: 10000
 MODEL:
-  PRETRAIN_FILE: "fast_itpn_tiny_1600e_1k.pt"
   EXTRA_MERGER: False
   RETURN_INTER: False
   ENCODER:
+    PRETRAIN_TYPE: 'pretrained_models/fast_itpn_tiny_1600e_1k.pt'
     TYPE: fastitpnt
     STRIDE: 16
-  HEAD:
+  DECODER:
     TYPE: CENTER
     NUM_CHANNELS: 256
 TRAIN:

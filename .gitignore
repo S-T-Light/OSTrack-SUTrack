@@ -173,3 +173,4 @@ data/
 output/
 tensorboard/
 lib/models/sutrack/fastitpn_bak.py
+pretrained_models/mae_pretrain_vit_base.pth

@@ -1095,7 +1095,7 @@ class Fast_iTPN(nn.Module):
 #     model.load_state_dict(state_dict, strict=False)
 
 @register_model
-def fastitpnt(pretrained=False, **kwargs):
+def fastitpnt(pretrained=False, pretrain_type="", **kwargs):
     model = Fast_iTPN(
         patch_size=16, embed_dim=384, depth_stage1=1, depth_stage2=1, depth=12, num_heads=6, bridge_mlp_ratio=3.,
         mlp_ratio=3., qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6),
@@ -1105,10 +1105,15 @@ def fastitpnt(pretrained=False, **kwargs):
         **kwargs)
     model.default_cfg = _cfg()
     if pretrained:
-        checkpoint = torch.load(
-            kwargs["init_ckpt"], map_location="cpu"
-        )
-        model.load_state_dict(checkpoint["model"])
+        checkpoint = torch.load(pretrain_type, map_location="cpu")
+        if "module" in checkpoint.keys():
+        # adjust position encoding
+            state_dict = checkpoint["module"]
+        elif "model" in checkpoint.keys():
+            state_dict = checkpoint["model"]
+        else:
+            state_dict = checkpoint
+        model.load_state_dict(state_dict, strict=False)
     return model
 
 

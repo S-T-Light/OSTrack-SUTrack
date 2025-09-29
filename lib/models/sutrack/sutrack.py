@@ -100,7 +100,7 @@ def build_sutrack(cfg, training=True):
         encoder,
         box_head,
         aux_loss=False,
-        head_type=cfg.MODEL.HEAD.TYPE,
+        head_type=cfg.MODEL.DECODER.TYPE,
     )
 
     # if 'SUTrack' in cfg.MODEL.PRETRAIN_FILE and training:

@@ -61,7 +61,7 @@ class Encoder(EncoderBase):
                 cls_token=cfg.MODEL.ENCODER.CLASS_TOKEN,
                 # pos_type=cfg.MODEL.ENCODER.POS_TYPE,
                 # token_type_indicate=cfg.MODEL.ENCODER.TOKEN_TYPE_INDICATE,
-                # pretrain_type = cfg.MODEL.ENCODER.PRETRAIN_TYPE,
+                pretrain_type = cfg.MODEL.ENCODER.PRETRAIN_TYPE,
                 # patchembed_init = cfg.MODEL.ENCODER.PATCHEMBED_INIT
             )
             if "itpnb" in name:

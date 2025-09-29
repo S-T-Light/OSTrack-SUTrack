@@ -223,7 +223,7 @@ class MLP(nn.Module):
 
 def build_box_head(cfg, encoder):
     in_channel = encoder.num_channels # 这里根据不同encoder的大小设置
-    hidden_dim = cfg.DECODER.NUM_CHANNELS
+    hidden_dim = cfg.MODEL.DECODER.NUM_CHANNELS
     stride = cfg.MODEL.ENCODER.STRIDE
 
     if cfg.MODEL.DECODER.TYPE == "MLP":
