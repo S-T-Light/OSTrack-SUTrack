@@ -1033,69 +1033,73 @@ class Fast_iTPN(nn.Module):
         out = self.head(xz)
         return out
 
-# def load_pretrained(model, checkpoint, pos_type, patchembed_init):
-#     if "module" in checkpoint.keys():
-#         # adjust position encoding
-#         state_dict = checkpoint["module"]
-#     elif "model" in checkpoint.keys():
-#         state_dict = checkpoint["model"]
-#     else:
-#         state_dict = checkpoint
-#     pe = state_dict['pos_embed'].float()
-#     b_pe, hw_pe, c_pe = pe.shape
-#     side_pe = int(math.sqrt(hw_pe))
-#     side_num_patches_search = int(math.sqrt(model.num_patches_search))
-#     side_num_patches_template = int(math.sqrt(model.num_patches_template))
-#     pe_2D = pe.reshape([b_pe, side_pe, side_pe, c_pe]).permute([0,3,1,2])  #b,c,h,w
+def load_pretrained(model, checkpoint, pos_type):
+    if "module" in checkpoint.keys(): # 如果checkpoint包含"module"键，说明是DataParallel保存的模型
+        state_dict = checkpoint["module"]
+    elif "model" in checkpoint.keys(): # 如果包含"model"键，说明是标准格式
+        state_dict = checkpoint["model"]
+    else:
+        state_dict = checkpoint
+    
+    # adjust position encoding
+    pe = state_dict['pos_embed'].float()
+    b_pe, hw_pe, c_pe = pe.shape # batch, height*width, channels
+    side_pe = int(math.sqrt(hw_pe)) # 高度×宽度的patch数量的平方根
+    # 计算目标模型search区域的patch数量的平方根
+    side_num_patches_search = int(math.sqrt(model.num_patches_search))
+    # 计算目标模型template区域的patch数量的平方根
+    side_num_patches_template = int(math.sqrt(model.num_patches_template))
+    pe_2D = pe.reshape([b_pe, side_pe, side_pe, c_pe]).permute([0,3,1,2])  #将 1D位置编码重塑为2D格式（b,c,h,w）
 
-#     def adjust_pe(pe_2D, side_pe, side_new):
-#         if pos_type == 'index':
-#             if side_pe < side_new:
-#                 pe_new_2D = nn.functional.interpolate(pe_2D, [side_new, side_new], align_corners=True, mode='bicubic')
-#                 warnings.warn('The resolution is too large, the POS_TYPE has been modified to \'interpolate\'')
-#             else:
-#                 pe_new_2D = pe_2D[:,:,0:side_new,0:side_new]
-#             pe_new = torch.flatten(pe_new_2D.permute([0, 2, 3, 1]), 1, 2)
-#         elif pos_type == 'interpolate':
-#             pe_new_2D = nn.functional.interpolate(pe_2D, [side_new, side_new], align_corners=True, mode='bicubic')
-#             pe_new = torch.flatten(pe_new_2D.permute([0, 2, 3, 1]), 1, 2)#b,l,c
-#         else:
-#             raise NotImplementedError('The POS_TYPE should be index or interpolate')
-#         return pe_new
+    def adjust_pe(pe_2D, side_pe, side_new):
+        if pos_type == 'index':
+            if side_pe < side_new:
+                pe_new_2D = nn.functional.interpolate(pe_2D, [side_new, side_new], align_corners=True, mode='bicubic')
+                warnings.warn('The resolution is too large, the POS_TYPE has been modified to \'interpolate\'')
+            else:
+                pe_new_2D = pe_2D[:,:,0:side_new,0:side_new] # 直接裁剪
+            pe_new = torch.flatten(pe_new_2D.permute([0, 2, 3, 1]), 1, 2)
+        elif pos_type == 'interpolate':
+            pe_new_2D = nn.functional.interpolate(pe_2D, [side_new, side_new], align_corners=True, mode='bicubic')
+            pe_new = torch.flatten(pe_new_2D.permute([0, 2, 3, 1]), 1, 2)#b,l,c
+        else:
+            raise NotImplementedError('The POS_TYPE should be index or interpolate')
+        return pe_new
 
-#     if side_pe != side_num_patches_search:
-#         pe_s = adjust_pe(pe_2D, side_pe, side_num_patches_search)
-#     else:
-#         pe_s = pe
-#     if side_pe != side_num_patches_template:
-#         pe_t = adjust_pe(pe_2D, side_pe, side_num_patches_template)
-#     else:
-#         pe_t = pe
-#     pe_xz = torch.cat((pe_s, pe_t), dim=1)
-#     state_dict['pos_embed'] = pe_xz
-#     auxiliary_keys = ["template_background_token", "template_foreground_token", "search_token"]
-#     for key in auxiliary_keys:
-#         if (key in model.state_dict().keys()) and (key not in state_dict.keys()):
-#             state_dict[key] = model.state_dict()[key]
+    if side_pe != side_num_patches_search:
+        pe_s = adjust_pe(pe_2D, side_pe, side_num_patches_search)
+    else:
+        pe_s = pe
+    if side_pe != side_num_patches_template:
+        pe_t = adjust_pe(pe_2D, side_pe, side_num_patches_template)
+    else:
+        pe_t = pe
+    pe_xz = torch.cat((pe_s, pe_t), dim=1)
+    state_dict['pos_embed'] = pe_xz
+    
+    # auxiliary_keys = ["template_background_token", "template_foreground_token", "search_token"]
+    # for key in auxiliary_keys:
+    #     if (key in model.state_dict().keys()) and (key not in state_dict.keys()):
+    #         state_dict[key] = model.state_dict()[key]
 
-#     ## patch embedding
-#     patch_embedding_weight = model.state_dict()['patch_embed.proj.weight']
-#     patch_embedding_weight_pretrained = state_dict['patch_embed.proj.weight']
-#     if patchembed_init == "copy":
-#         patch_embedding_weight[:,:3,:,:] = patch_embedding_weight_pretrained
-#         patch_embedding_weight[:,3:,:,:] = patch_embedding_weight_pretrained
-#     elif patchembed_init == "halfcopy":
-#         patch_embedding_weight[:,:3,:,:] = patch_embedding_weight_pretrained / 2
-#         patch_embedding_weight[:,3:,:,:] = patch_embedding_weight_pretrained / 2
-#     elif patchembed_init == "random":
-#         patch_embedding_weight[:, :3, :, :] = patch_embedding_weight_pretrained
-#     else:
-#         raise NotImplementedError('cfg.MODEL.ENCODER.PATCHEMBED_INIT must be choosen from copy, halfcopy, or random')
-#     state_dict['patch_embed.proj.weight'] = patch_embedding_weight
-#     model.load_state_dict(state_dict, strict=False)
+    # ## patch embedding
+    # patch_embedding_weight = model.state_dict()['patch_embed.proj.weight']
+    # patch_embedding_weight_pretrained = state_dict['patch_embed.proj.weight']
+    # if patchembed_init == "copy":
+    #     patch_embedding_weight[:,:3,:,:] = patch_embedding_weight_pretrained
+    #     patch_embedding_weight[:,3:,:,:] = patch_embedding_weight_pretrained
+    # elif patchembed_init == "halfcopy":
+    #     patch_embedding_weight[:,:3,:,:] = patch_embedding_weight_pretrained / 2
+    #     patch_embedding_weight[:,3:,:,:] = patch_embedding_weight_pretrained / 2
+    # elif patchembed_init == "random":
+    #     patch_embedding_weight[:, :3, :, :] = patch_embedding_weight_pretrained
+    # else:
+    #     raise NotImplementedError('cfg.MODEL.ENCODER.PATCHEMBED_INIT must be choosen from copy, halfcopy, or random')
+    # state_dict['patch_embed.proj.weight'] = patch_embedding_weight
+    model.load_state_dict(state_dict, strict=False)
 
 @register_model
-def fastitpnt(pretrained=False, pretrain_type="", **kwargs):
+def fastitpnt(pretrained=False, pos_type="interpolate", pretrain_type="", **kwargs):
     model = Fast_iTPN(
         patch_size=16, embed_dim=384, depth_stage1=1, depth_stage2=1, depth=12, num_heads=6, bridge_mlp_ratio=3.,
         mlp_ratio=3., qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6),
@@ -1106,14 +1110,7 @@ def fastitpnt(pretrained=False, pretrain_type="", **kwargs):
     model.default_cfg = _cfg()
     if pretrained:
         checkpoint = torch.load(pretrain_type, map_location="cpu")
-        if "module" in checkpoint.keys():
-        # adjust position encoding
-            state_dict = checkpoint["module"]
-        elif "model" in checkpoint.keys():
-            state_dict = checkpoint["model"]
-        else:
-            state_dict = checkpoint
-        model.load_state_dict(state_dict, strict=False)
+        load_pretrained(model,checkpoint,pos_type)
     return model
 
 
