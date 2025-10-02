@@ -41,10 +41,12 @@ echo ""
 echo "****************** Installing jpeg4py python wrapper ******************"
 pip install jpeg4py
 
-echo ""
-echo ""
-echo "****************** Installing tensorboard ******************"
-pip install tb-nightly
+# echo ""
+# echo ""
+# echo "****************** Installing tensorboard ******************"
+# pip install tb-nightly
+pip install tensorboard
+pip install protobuf==3.20.3
 
 echo ""
 echo ""
