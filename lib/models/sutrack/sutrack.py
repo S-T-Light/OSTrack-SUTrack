@@ -34,16 +34,8 @@ class SUTrack(nn.Module):
         if self.aux_loss:
             self.box_head = _get_clones(self.box_head, 6)
 
-    def forward(self, template: torch.Tensor,
-                search: torch.Tensor,
-                ce_template_mask=None,
-                ce_keep_rate=None,
-                return_last_attn=False,
-                ):
-        x = self.encoder(z=template, x=search,
-                                    ce_template_mask=ce_template_mask,
-                                    ce_keep_rate=ce_keep_rate,
-                                    return_last_attn=return_last_attn, )
+    def forward(self, template_list=None, search_list=None):
+        x = self.encoder(template_list, search_list)
 
         out = self.forward_head(x, None)
         return out

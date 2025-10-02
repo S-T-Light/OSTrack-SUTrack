@@ -167,7 +167,7 @@ def get_optimizer_scheduler(net, cfg):
             {"params": [p for n, p in net.named_parameters() if "backbone" not in n and p.requires_grad]},
             {
                 "params": [p for n, p in net.named_parameters() if "backbone" in n and p.requires_grad],
-                "lr": cfg.TRAIN.LR * cfg.TRAIN.BACKBONE_MULTIPLIER,
+                "lr": cfg.TRAIN.LR * cfg.TRAIN.ENCODER_MULTIPLIER,
             },
         ]
         if is_main_process():
